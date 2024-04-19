@@ -401,7 +401,7 @@ def main(args):
     ##################### Added by NS ##################################################
     # Log norms of weight matrices for linear projections
     print(model)
-    _MODULE = model.module.wrapped_model.model if args.use_peft else model.module.model
+    _MODULE = model.module.model
 
     # # Iterate over each parameter in the model
     # for name, param in _MODULE.named_parameters():
@@ -412,23 +412,6 @@ def main(args):
     layer6_v_W0 = _MODULE.layers[6].self_attn.v_proj.weight.clone()
     layer6_o_W0 = _MODULE.layers[6].self_attn.o_proj.weight.clone()
     layer6_k_W0 = _MODULE.layers[6].self_attn.k_proj.weight.clone()
-
-    if args.use_peft:
-        q_Wa_0 = _MODULE.layers[6].self_attn.q_proj.lora_A.weight.clone()
-        q_Wb_0 = _MODULE.layers[6].self_attn.q_proj.lora_B.weight.clone()
-        q_WaWb_0 = q_Wa_0.T @ q_Wb_0.T
-
-        k_Wa_0 = _MODULE.layers[6].self_attn.k_proj.lora_A.weight.clone()
-        k_Wb_0 = _MODULE.layers[6].self_attn.k_proj.lora_B.weight.clone()
-        k_WaWb_0 = k_Wa_0.T @ k_Wb_0.T
-
-        v_Wa_0 = _MODULE.layers[6].self_attn.v_proj.lora_A.weight.clone()
-        v_Wb_0 = _MODULE.layers[6].self_attn.v_proj.lora_B.weight.clone()
-        v_WaWb_0 = v_Wa_0.T @ v_Wb_0.T
-
-        o_Wa_0 = _MODULE.layers[6].self_attn.o_proj.lora_A.weight.clone()
-        o_Wb_0 = _MODULE.layers[6].self_attn.o_proj.lora_B.weight.clone()
-        o_WaWb_0 = o_Wa_0.T @ o_Wb_0.T
                 
     ####################################################################################
 
@@ -528,6 +511,15 @@ def main(args):
         tokens_seen_before = tokens_seen
         batches_in_update = args.gradient_accumulation * world_size
 
+        ############################ added by NS ################################################
+        # log at every step
+            # Log norms of weight matrices for linear projections
+        _MODULE = model.module.model
+        layer6_q_Wi = _MODULE.layers[6].self_attn.q_proj.weight
+        layer6_k_Wi = _MODULE.layers[6].self_attn.k_proj.weight
+        layer6_v_Wi = _MODULE.layers[6].self_attn.v_proj.weight
+        layer6_o_Wi = _MODULE.layers[6].self_attn.o_proj.weight
+
         if global_rank == 0:
             wandb.log({
                 "loss": loss.item(),
@@ -537,6 +529,10 @@ def main(args):
                 "throughput_tokens": tokens_in_update / update_time,
                 "throughput_examples": args.total_batch_size / update_time,
                 "throughput_batches": batches_in_update / update_time,
+                "layer6_q_norm_W0-Wi": (layer6_q_W0 - layer6_q_Wi).norm().item(),
+                "layer6_k_norm_W0-Wi": (layer6_k_W0 - layer6_k_Wi).norm().item(),
+                "layer6_v_norm_W0-Wi": (layer6_v_W0 - layer6_v_Wi).norm().item(),
+                "layer6_o_norm_W0-Wi": (layer6_o_W0 - layer6_o_Wi).norm().item(),
                 },
                 step=global_step,
             )
